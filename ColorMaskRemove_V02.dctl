@@ -1,0 +1,111 @@
+//Remove Color Mask Ver.02
+//2020-06-22 17:10
+//By HikariDragon
+
+//Release Notes
+//----Ver.02----
+//- add function: adjust exposure
+//----Ver.01----
+//- add function: RGB channel black & white point
+//- add function: Negative invert
+
+//--------UI Components--------
+//isNegative
+DEFINE_UI_PARAMS(isNegative, IsNegative, DCTLUI_CHECK_BOX, 0)
+
+//exposure
+DEFINE_UI_PARAMS(expo, Exposure, DCTLUI_SLIDER_FLOAT, 0.0, -3.0, 3.0, 1.0)
+
+//Red channel
+DEFINE_UI_PARAMS(RL, Red Low Point, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 8.0, 0.005)
+DEFINE_UI_PARAMS(RH, Red High Point, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.005)
+
+//Green channel
+DEFINE_UI_PARAMS(GL, Green Low Point, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 8.0, 0.005)
+DEFINE_UI_PARAMS(GH, Green High Point, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.005)
+
+//Blue channel
+DEFINE_UI_PARAMS(BL, Blue Low Point, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 12.0, 0.005)
+DEFINE_UI_PARAMS(BH, Blue High Point, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.005)
+//--------UI Components--------
+
+//--------Log2linear function--------
+__DEVICE__ inline float Log_to_linear(float inv)
+{
+    float outv;
+    if (inv > 0.0f) 
+    { 
+        outv = (_powf(10.0f,(inv * 1023.0f - 685.0f)*0.003333333f) - 0.010797752f )/0.890282024f;
+    }
+    else
+    { 
+       outv = (inv * 0.045949378f) - 0.006278688f; 
+    }
+    return outv;
+}
+
+//--------linear2Log function--------
+__DEVICE__ inline float linear_to_log(float inv)
+{
+    float outv;
+    outv = ((685.0f + 300.0f * _log10f(inv * (1.0f - 0.010797752f) + 0.010797752f)) / 1023.0f);
+    return outv;
+}
+
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
+{    
+    expo = _powf(2.0f, expo);
+    //Positive
+    if (isNegative == 0)
+    {
+        float r = p_R;
+        float g = p_G;
+        float b = p_B;
+
+        float r2 = (2.0f + RL - RH) * r - RL;
+        float g2 = (2.0f + GL - GH) * g - GL;
+        float b2 = (2.0f + BL - BH) * b - BL;
+        
+        //--------adjust exposure--------
+        r2 = Log_to_linear(r2);
+        g2 = Log_to_linear(g2);
+        b2 = Log_to_linear(b2);
+        
+        r2 = expo*r2;
+        g2 = expo*g2;
+        b2 = expo*b2;
+
+        r2 = linear_to_log(r2);
+        g2 = linear_to_log(g2);
+        b2 = linear_to_log(b2);
+
+        return make_float3(r2, g2, b2);
+    }
+    //Negative
+    else
+    {    
+        float r = (-1.0f * p_R)+1.0f;
+        float g = (-1.0f * p_G)+1.0f;
+        float b = (-1.0f * p_B)+1.0f;
+
+        float r2 = (2.0f + RL - RH) * r - RL;
+        float g2 = (2.0f + GL - GH) * g - GL;
+        float b2 = (2.0f + BL - BH) * b - BL;
+        
+        //--------adjust exposure--------
+        r2 = Log_to_linear(r2);
+        g2 = Log_to_linear(g2);
+        b2 = Log_to_linear(b2);
+
+        r2 = expo*r2;
+        g2 = expo*g2;
+        b2 = expo*b2;
+
+        r2 = linear_to_log(r2);
+        g2 = linear_to_log(g2);
+        b2 = linear_to_log(b2);
+
+        return make_float3(r2, g2, b2);
+    }
+}
